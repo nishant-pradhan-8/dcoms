@@ -1,0 +1,226 @@
+package client;
+
+import common.Employee;
+import common.FamilyDetail;
+import common.HRMService;
+
+import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.JTextField;
+import javax.swing.SwingWorker;
+import javax.swing.table.DefaultTableModel;
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.rmi.RemoteException;
+import java.sql.Date;
+import java.util.List;
+
+public class FamilyDetailsPanel extends JPanel {
+
+    private final HRMService service;
+    private final Employee employee;
+    private final DefaultTableModel tableModel;
+
+    public FamilyDetailsPanel(HRMService service, Employee employee) {
+        this.service = service;
+        this.employee = employee;
+
+        setLayout(new BorderLayout(8, 8));
+
+        tableModel = new DefaultTableModel(
+                new String[]{"ID", "Member Name", "Relationship", "Date of Birth"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        JTable table = new JTable(tableModel);
+        add(new JScrollPane(table), BorderLayout.CENTER);
+
+        JButton addButton = new JButton("Add");
+        addButton.addActionListener(e -> showAddDialog());
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.add(addButton);
+        add(buttonPanel, BorderLayout.SOUTH);
+
+        loadFamilyDetails();
+    }
+
+    private void showAddDialog() {
+        JDialog dialog = new JDialog(
+                (java.awt.Frame) javax.swing.SwingUtilities.getWindowAncestor(this),
+                "Add Family Member",
+                true
+        );
+        dialog.setLayout(new BorderLayout(8, 8));
+
+        JPanel formPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(6, 6, 6, 6);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        JTextField nameField = new JTextField(20);
+        JTextField relationshipField = new JTextField(20);
+        JTextField dobField = new JTextField(20);
+
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        formPanel.add(new JLabel("Member Name:"), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1;
+        formPanel.add(nameField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.weightx = 0;
+        formPanel.add(new JLabel("Relationship:"), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1;
+        formPanel.add(relationshipField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        gbc.weightx = 0;
+        formPanel.add(new JLabel("DOB (YYYY-MM-DD):"), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1;
+        formPanel.add(dobField, gbc);
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton submitButton = new JButton("Submit");
+        JButton cancelButton = new JButton("Cancel");
+        buttonPanel.add(submitButton);
+        buttonPanel.add(cancelButton);
+
+        cancelButton.addActionListener(e -> dialog.dispose());
+
+        submitButton.addActionListener(e -> {
+            String memberName = nameField.getText().trim();
+            String relationship = relationshipField.getText().trim();
+            String dobText = dobField.getText().trim();
+
+            if (memberName.isEmpty() || relationship.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog,
+                        "Member name and relationship are required.",
+                        "Validation Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            Date dob = null;
+            if (!dobText.isEmpty()) {
+                try {
+                    dob = Date.valueOf(dobText);
+                } catch (IllegalArgumentException ex) {
+                    JOptionPane.showMessageDialog(dialog,
+                            "Date of birth must be in YYYY-MM-DD format.",
+                            "Validation Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            }
+
+            FamilyDetail detail = new FamilyDetail();
+            detail.setMemberName(memberName);
+            detail.setRelationship(relationship);
+            detail.setDob(dob);
+
+            submitButton.setEnabled(false);
+            SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
+                private Exception error;
+
+                @Override
+                protected Boolean doInBackground() {
+                    try {
+                        return service.addFamilyDetail(employee.getEmpId(), detail);
+                    } catch (RemoteException ex) {
+                        error = ex;
+                        return false;
+                    }
+                }
+
+                @Override
+                protected void done() {
+                    submitButton.setEnabled(true);
+                    if (error != null) {
+                        JOptionPane.showMessageDialog(dialog,
+                                error.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                    try {
+                        if (Boolean.TRUE.equals(get())) {
+                            dialog.dispose();
+                            loadFamilyDetails();
+                        } else {
+                            JOptionPane.showMessageDialog(dialog,
+                                    "Failed to add family member.",
+                                    "Error", JOptionPane.ERROR_MESSAGE);
+                        }
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(dialog,
+                                ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            };
+            worker.execute();
+        });
+
+        dialog.add(formPanel, BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    private void loadFamilyDetails() {
+        SwingWorker<List<FamilyDetail>, Void> worker = new SwingWorker<>() {
+            private Exception error;
+
+            @Override
+            protected List<FamilyDetail> doInBackground() {
+                try {
+                    return service.getFamilyDetails(employee.getEmpId());
+                } catch (RemoteException e) {
+                    error = e;
+                    return null;
+                }
+            }
+
+            @Override
+            protected void done() {
+                if (error != null) {
+                    JOptionPane.showMessageDialog(FamilyDetailsPanel.this,
+                            error.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                try {
+                    tableModel.setRowCount(0);
+                    List<FamilyDetail> details = get();
+                    if (details == null) {
+                        return;
+                    }
+                    for (FamilyDetail detail : details) {
+                        tableModel.addRow(new Object[]{
+                                detail.getDetailId(),
+                                detail.getMemberName(),
+                                detail.getRelationship(),
+                                detail.getDob()
+                        });
+                    }
+                } catch (Exception e) {
+                    JOptionPane.showMessageDialog(FamilyDetailsPanel.this,
+                            e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        };
+        worker.execute();
+    }
+}

@@ -1,0 +1,104 @@
+# HRM System — Cursor AI Rules
+# Stack: Java 17 + RMI + Swing + MySQL
+
+# ─────────────────────────────────────────────
+# 1. HARD STACK CONSTRAINTS (DO NOT BREAK)
+# ─────────────────────────────────────────────
+
+- Language: Java 17+
+- UI: Java Swing ONLY (NO JavaFX, NO web UI)
+- Distributed: Java RMI ONLY (UnicastRemoteObject, Naming, LocateRegistry)
+- Database: MySQL 8.x via JDBC only
+- Connection Pool: HikariCP only
+- Password Hashing: jBCrypt (BCrypt only)
+
+DO NOT USE:
+- Spring / Spring Boot / Hibernate / JPA
+- JavaFX, REST APIs, WebSockets, gRPC
+- Raw Thread usage in Swing (must use SwingWorker)
+- Statement (SQL must always use PreparedStatement)
+- Hardcoded credentials (must use config.properties)
+- Any external architecture not listed above
+
+# ─────────────────────────────────────────────
+# 2. RMI + DISTRIBUTED RULES
+# ─────────────────────────────────────────────
+
+- All remote methods MUST be defined in a Remote interface
+- All remote methods MUST declare `throws RemoteException`
+- Server implementation MUST extend UnicastRemoteObject
+- RMI calls may be concurrent → assume multi-threaded execution
+- Use synchronization only when modifying shared state (e.g., leave balance)
+
+# ─────────────────────────────────────────────
+# 3. DATABASE RULES (STRICT)
+# ─────────────────────────────────────────────
+
+- MUST use PreparedStatement only (NO string concatenation SQL)
+- MUST use connection pool (HikariCP)
+- MUST close ResultSet + Statement using try-with-resources
+- NEVER create raw JDBC connections manually outside DatabaseManager
+- All DB access must go through DatabaseManager
+
+# ─────────────────────────────────────────────
+# 4. SWING UI RULES (STRICT)
+# ─────────────────────────────────────────────
+
+- ALL RMI calls MUST be inside SwingWorker
+- NEVER call remote methods directly on Event Dispatch Thread (EDT)
+- ALL UI updates must happen on EDT (SwingUtilities.invokeLater or done())
+- Use JOptionPane for all user messages
+- Use JTable + DefaultTableModel for list data
+- Use JTabbedPane for dashboards
+- Use GridBagLayout for forms
+
+# ─────────────────────────────────────────────
+# 5. SECURITY RULES (STRICT)
+# ─────────────────────────────────────────────
+
+- Passwords MUST be hashed using BCrypt before storage
+- Password verification MUST use BCrypt.checkpw()
+- Enforce role-based access:
+  - HR-only methods must check role before execution
+- Never log or expose plaintext passwords
+
+# ─────────────────────────────────────────────
+# 6. CODE QUALITY RULES
+# ─────────────────────────────────────────────
+
+- All model classes must be POJOs only (no DB logic)
+- All models must implement Serializable with serialVersionUID = 1L
+- Use java.sql.Date for all date fields
+- Keep client/server/common separation strictly respected
+- No business logic inside Swing UI classes
+- Server must never crash → all methods must use try-catch and return RemoteException on failure
+
+# ─────────────────────────────────────────────
+# 7. ERROR HANDLING RULES
+# ─────────────────────────────────────────────
+
+- ALL remote methods must handle exceptions internally
+- NEVER expose stack traces to client users
+- Client must show user-friendly error dialogs
+- Handle RemoteException and connection failures gracefully
+
+# ─────────────────────────────────────────────
+# 8. ARCHITECTURE RULE (HIGH LEVEL)
+# ─────────────────────────────────────────────
+
+Client (Swing UI)
+   ↓ RMI 
+Server (Business Logic + DB Access)
+   ↓ JDBC
+MySQL Database
+
+Keep this separation strict. No shortcuts.
+
+# ─────────────────────────────────────────────
+# 9. ABSOLUTE RULE
+# ─────────────────────────────────────────────
+
+If unsure:
+→ Prefer simplicity
+→ Prefer safety
+→ Prefer correctness over optimization
