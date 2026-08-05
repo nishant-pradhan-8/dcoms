@@ -6,8 +6,10 @@
 # ── Credentials & Config ──────────────────────
 config.properties
 
-# ── SSL Certs (not used but just in case) ─────
+# ── SSL Certs ─────────────────────────────────
 certs/
+ssl/*
+!ssl/generate-certs.sh
 *.keystore
 *.truststore
 *.cer

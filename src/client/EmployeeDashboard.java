@@ -14,6 +14,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.SwingWorker;
+import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
@@ -38,7 +39,7 @@ public class EmployeeDashboard extends JFrame {
         this.loggedInEmployee = loggedInEmployee;
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(900, 650);
+        setSize(900, 620);
         setLocationRelativeTo(null);
 
         JTabbedPane tabbedPane = new JTabbedPane();
@@ -57,36 +58,66 @@ public class EmployeeDashboard extends JFrame {
             }
         });
 
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+
         JLabel header = new JLabel("Logged in as: " + loggedInEmployee.getFirstName()
                 + " " + loggedInEmployee.getLastName() + " (Employee)");
-        header.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-        add(header, BorderLayout.NORTH);
+        JButton logoutButton = new JButton("Logout");
+        logoutButton.addActionListener(e -> logout());
+
+        headerPanel.add(header, BorderLayout.WEST);
+        headerPanel.add(logoutButton, BorderLayout.EAST);
+
+        add(headerPanel, BorderLayout.NORTH);
         add(tabbedPane, BorderLayout.CENTER);
     }
 
+    private void logout() {
+        int confirm = JOptionPane.showConfirmDialog(
+                this,
+                "Are you sure you want to logout?",
+                "Logout",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+        );
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+        dispose();
+        new LoginFrame(service).setVisible(true);
+    }
+
     private JPanel createLeaveBalancePanel() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+        JPanel panel = new JPanel(new BorderLayout());
+
+        JPanel contentPanel = new JPanel(new GridBagLayout());
+        contentPanel.setBorder(new EmptyBorder(16, 16, 16, 16));
 
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(8, 8, 8, 8);
+        gbc.gridx = 0;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.WEST;
 
         annualLeaveLabel = new JLabel("Annual Leave: --");
         sickLeaveLabel = new JLabel("Sick Leave: --");
 
-        gbc.gridx = 0;
         gbc.gridy = 0;
-        panel.add(annualLeaveLabel, gbc);
+        gbc.insets = new Insets(0, 0, 8, 0);
+        contentPanel.add(annualLeaveLabel, gbc);
 
         gbc.gridy = 1;
-        panel.add(sickLeaveLabel, gbc);
+        gbc.insets = new Insets(0, 0, 16, 0);
+        contentPanel.add(sickLeaveLabel, gbc);
 
         JButton refreshButton = new JButton("Refresh");
         refreshButton.addActionListener(e -> loadLeaveBalance());
         gbc.gridy = 2;
-        panel.add(refreshButton, gbc);
+        gbc.insets = new Insets(0, 0, 0, 0);
+        contentPanel.add(refreshButton, gbc);
 
+        panel.add(contentPanel, BorderLayout.NORTH);
         return panel;
     }
 

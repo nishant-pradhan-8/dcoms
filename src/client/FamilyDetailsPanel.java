@@ -13,6 +13,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
+import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
@@ -34,6 +35,7 @@ public class FamilyDetailsPanel extends JPanel {
         this.employee = employee;
 
         setLayout(new BorderLayout(8, 8));
+        setBorder(new EmptyBorder(8, 8, 8, 8));
 
         tableModel = new DefaultTableModel(
                 new String[]{"ID", "Member Name", "Relationship", "Date of Birth"}, 0) {
@@ -65,36 +67,22 @@ public class FamilyDetailsPanel extends JPanel {
         dialog.setLayout(new BorderLayout(8, 8));
 
         JPanel formPanel = new JPanel(new GridBagLayout());
+        formPanel.setBorder(new EmptyBorder(16, 16, 8, 16));
+
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(6, 6, 6, 6);
+        gbc.gridx = 0;
+        gbc.weightx = 1.0;
         gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
 
         JTextField nameField = new JTextField(20);
         JTextField relationshipField = new JTextField(20);
         JTextField dobField = new JTextField(20);
 
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        formPanel.add(new JLabel("Member Name:"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
-        formPanel.add(nameField, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        gbc.weightx = 0;
-        formPanel.add(new JLabel("Relationship:"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
-        formPanel.add(relationshipField, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        gbc.weightx = 0;
-        formPanel.add(new JLabel("DOB (YYYY-MM-DD):"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
-        formPanel.add(dobField, gbc);
+        int row = 0;
+        row = addDialogField(formPanel, gbc, row, "Member Name:", nameField);
+        row = addDialogField(formPanel, gbc, row, "Relationship:", relationshipField);
+        addDialogField(formPanel, gbc, row, "DOB (YYYY-MM-DD):", dobField);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton submitButton = new JButton("Submit");
@@ -178,6 +166,20 @@ public class FamilyDetailsPanel extends JPanel {
         dialog.pack();
         dialog.setLocationRelativeTo(this);
         dialog.setVisible(true);
+    }
+
+    private int addDialogField(JPanel panel, GridBagConstraints gbc, int row, String label, JTextField field) {
+        gbc.gridy = row;
+        gbc.insets = new Insets(0, 0, 4, 0);
+        gbc.ipady = 0;
+        panel.add(new JLabel(label), gbc);
+
+        gbc.gridy = row + 1;
+        gbc.insets = new Insets(0, 0, 12, 0);
+        gbc.ipady = 4;
+        panel.add(field, gbc);
+
+        return row + 2;
     }
 
     private void loadFamilyDetails() {

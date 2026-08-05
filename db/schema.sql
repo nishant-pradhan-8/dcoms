@@ -18,6 +18,9 @@ CREATE TABLE employees (
     username      VARCHAR(50)  NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     role          ENUM('HR', 'EMPLOYEE') NOT NULL DEFAULT 'EMPLOYEE',
+    phone_number  VARCHAR(20),
+    email         VARCHAR(100),
+    address       VARCHAR(255),
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

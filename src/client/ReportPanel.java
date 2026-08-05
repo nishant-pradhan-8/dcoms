@@ -4,13 +4,14 @@ import common.Employee;
 import common.HRMService;
 
 import javax.swing.JButton;
+import javax.swing.JEditorPane;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
+import javax.swing.border.EmptyBorder;
 import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -23,7 +24,7 @@ public class ReportPanel extends JPanel {
     private final HRMService service;
     private final JTextField empIdField;
     private final JTextField yearField;
-    private final JTextArea reportArea;
+    private final JEditorPane reportPane;
     private final JButton generateButton;
 
     public ReportPanel(HRMService service, Employee loggedInEmployee) {
@@ -32,44 +33,52 @@ public class ReportPanel extends JPanel {
         setLayout(new BorderLayout(8, 8));
 
         JPanel formPanel = new JPanel(new GridBagLayout());
+        formPanel.setBorder(new EmptyBorder(16, 16, 8, 16));
+
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(8, 8, 8, 8);
+        gbc.gridx = 0;
+        gbc.weightx = 1.0;
         gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
 
         empIdField = new JTextField(10);
         yearField = new JTextField(10);
         generateButton = new JButton("Generate");
 
-        gbc.gridx = 0;
         gbc.gridy = 0;
+        gbc.insets = new Insets(0, 0, 4, 0);
         formPanel.add(new JLabel("Employee ID:"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
+
+        gbc.gridy = 1;
+        gbc.insets = new Insets(0, 0, 12, 0);
+        gbc.ipady = 4;
         formPanel.add(empIdField, gbc);
 
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        gbc.weightx = 0;
+        gbc.gridy = 2;
+        gbc.insets = new Insets(0, 0, 4, 0);
+        gbc.ipady = 0;
         formPanel.add(new JLabel("Year:"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
+
+        gbc.gridy = 3;
+        gbc.insets = new Insets(0, 0, 12, 0);
+        gbc.ipady = 4;
         formPanel.add(yearField, gbc);
 
         generateButton.addActionListener(e -> generateReport());
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        gbc.gridwidth = 2;
+        gbc.gridy = 4;
+        gbc.insets = new Insets(0, 0, 0, 0);
+        gbc.ipady = 4;
         formPanel.add(generateButton, gbc);
 
         yearField.setText(String.valueOf(java.time.Year.now().getValue()));
 
-        reportArea = new JTextArea();
-        reportArea.setEditable(false);
-        reportArea.setLineWrap(true);
-        reportArea.setWrapStyleWord(true);
+        reportPane = new JEditorPane();
+        reportPane.setEditable(false);
+        reportPane.setContentType("text/html");
+        reportPane.setText("<html><body><p'>Generate a report to view it here.</p></body></html>");
 
         add(formPanel, BorderLayout.NORTH);
-        add(new JScrollPane(reportArea), BorderLayout.CENTER);
+        add(new JScrollPane(reportPane), BorderLayout.CENTER);
     }
 
     private void generateReport() {
@@ -96,7 +105,8 @@ public class ReportPanel extends JPanel {
         }
 
         generateButton.setEnabled(false);
-        reportArea.setText("Generating report...");
+        reportPane.setContentType("text/html");
+        reportPane.setText("<html><body><p>Generating report...</p></body></html>");
 
         SwingWorker<byte[], Void> worker = new SwingWorker<>() {
             private Exception error;
@@ -115,7 +125,7 @@ public class ReportPanel extends JPanel {
             protected void done() {
                 generateButton.setEnabled(true);
                 if (error != null) {
-                    reportArea.setText("");
+                    reportPane.setText("<html><body></body></html>");
                     JOptionPane.showMessageDialog(ReportPanel.this,
                             error.getMessage(), "Report Failed", JOptionPane.ERROR_MESSAGE);
                     return;
@@ -123,43 +133,26 @@ public class ReportPanel extends JPanel {
                 try {
                     byte[] report = get();
                     if (report == null) {
-                        reportArea.setText("");
+                        reportPane.setText("<html><body></body></html>");
                         JOptionPane.showMessageDialog(ReportPanel.this,
                                 "No report data returned.",
                                 "Report Failed", JOptionPane.ERROR_MESSAGE);
                         return;
                     }
-                    String reportText = new String(report, StandardCharsets.UTF_8);
-                    reportArea.setText(stripHtmlTags(reportText));
-                    reportArea.setCaretPosition(0);
+                    String html = new String(report, StandardCharsets.UTF_8);
+                    reportPane.setContentType("text/html");
+                    reportPane.setText(html);
+                    reportPane.setCaretPosition(0);
                     JOptionPane.showMessageDialog(ReportPanel.this,
                             "Report generated successfully.",
                             "Success", JOptionPane.INFORMATION_MESSAGE);
                 } catch (Exception e) {
-                    reportArea.setText("");
+                    reportPane.setText("<html><body></body></html>");
                     JOptionPane.showMessageDialog(ReportPanel.this,
                             e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                 }
             }
         };
         worker.execute();
-    }
-
-    private String stripHtmlTags(String html) {
-        return html
-                .replaceAll("(?i)</h1>", "\n\n")
-                .replaceAll("(?i)</h2>", "\n\n")
-                .replaceAll("(?i)</p>", "\n")
-                .replaceAll("(?i)</tr>", "\n")
-                .replaceAll("(?i)</th>", "\t")
-                .replaceAll("(?i)</td>", "\t")
-                .replaceAll("(?i)<br/?>", "\n")
-                .replaceAll("<[^>]+>", "")
-                .replace("&nbsp;", " ")
-                .replace("&amp;", "&")
-                .replace("&lt;", "<")
-                .replace("&gt;", ">")
-                .replace("&quot;", "\"")
-                .trim();
     }
 }

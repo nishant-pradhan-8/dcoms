@@ -101,7 +101,8 @@ public class DatabaseManager {
 
     public Employee getEmployeeByUsername(String username) throws SQLException {
         String sql = """
-                SELECT emp_id, first_name, last_name, ic_passport, username, role
+                SELECT emp_id, first_name, last_name, ic_passport, username, role,
+                       phone_number, email, address
                 FROM employees
                 WHERE username = ?
                 """;
@@ -139,9 +140,42 @@ public class DatabaseManager {
         }
     }
 
+    public String getPasswordHashByEmpId(int empId) throws SQLException {
+        String sql = "SELECT password_hash FROM employees WHERE emp_id = ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, empId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("password_hash");
+                }
+                return null;
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Failed to get password hash for empId: " + empId, e);
+            throw e;
+        }
+    }
+
+    public boolean updatePasswordHash(int empId, String passwordHash) throws SQLException {
+        String sql = "UPDATE employees SET password_hash = ? WHERE emp_id = ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, passwordHash);
+            ps.setInt(2, empId);
+            return ps.executeUpdate() == 1;
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Failed to update password for empId: " + empId, e);
+            throw e;
+        }
+    }
+
     public List<Employee> getAllEmployees() throws SQLException {
         String sql = """
-                SELECT emp_id, first_name, last_name, ic_passport, username, role
+                SELECT emp_id, first_name, last_name, ic_passport, username, role,
+                       phone_number, email, address
                 FROM employees
                 ORDER BY emp_id
                 """;
@@ -337,19 +371,40 @@ public class DatabaseManager {
     public boolean updateEmployeeProfile(int empId, Employee updatedData) throws SQLException {
         String sql = """
                 UPDATE employees
+                SET phone_number = ?, email = ?, address = ?
+                WHERE emp_id = ?
+                """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, updatedData.getPhoneNumber());
+            ps.setString(2, updatedData.getEmail());
+            ps.setString(3, updatedData.getAddress());
+            ps.setInt(4, empId);
+            return ps.executeUpdate() == 1;
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Failed to update employee profile for empId: " + empId, e);
+            throw e;
+        }
+    }
+
+    public boolean updateEmployeeIdentity(int empId, String firstName, String lastName, String icPassport)
+            throws SQLException {
+        String sql = """
+                UPDATE employees
                 SET first_name = ?, last_name = ?, ic_passport = ?
                 WHERE emp_id = ?
                 """;
 
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, updatedData.getFirstName());
-            ps.setString(2, updatedData.getLastName());
-            ps.setString(3, updatedData.getIcPassport());
+            ps.setString(1, firstName);
+            ps.setString(2, lastName);
+            ps.setString(3, icPassport);
             ps.setInt(4, empId);
             return ps.executeUpdate() == 1;
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Failed to update employee profile for empId: " + empId, e);
+            LOGGER.log(Level.SEVERE, "Failed to update employee identity for empId: " + empId, e);
             throw e;
         }
     }
@@ -396,7 +451,10 @@ public class DatabaseManager {
                 rs.getString("last_name"),
                 rs.getString("ic_passport"),
                 rs.getString("username"),
-                rs.getString("role")
+                rs.getString("role"),
+                rs.getString("phone_number"),
+                rs.getString("email"),
+                rs.getString("address")
         );
     }
 

@@ -7,6 +7,8 @@ import common.LeaveApplication;
 import org.mindrot.jbcrypt.BCrypt;
 
 import java.rmi.RemoteException;
+import java.rmi.server.RMIClientSocketFactory;
+import java.rmi.server.RMIServerSocketFactory;
 import java.rmi.server.UnicastRemoteObject;
 import java.sql.SQLException;
 import java.time.temporal.ChronoUnit;
@@ -21,8 +23,8 @@ public class HRMServiceImpl extends UnicastRemoteObject implements HRMService {
 
     private final DatabaseManager db;
 
-    public HRMServiceImpl() throws RemoteException {
-        super();
+    public HRMServiceImpl(RMIClientSocketFactory csf, RMIServerSocketFactory ssf) throws RemoteException {
+        super(0, csf, ssf);
         this.db = DatabaseManager.getInstance();
     }
 
@@ -56,6 +58,20 @@ public class HRMServiceImpl extends UnicastRemoteObject implements HRMService {
     }
 
     @Override
+    public boolean updateEmployeeIdentity(int empId, String firstName, String lastName,
+                                          String icPassport) throws RemoteException {
+        try {
+            return db.updateEmployeeIdentity(empId, firstName, lastName, icPassport);
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Failed to update employee identity for empId: " + empId, e);
+            throw new RemoteException("Failed to update employee identity: " + e.getMessage(), e);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Unexpected error updating employee identity", e);
+            throw new RemoteException("Failed to update employee identity: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public byte[] generateYearlyReport(int empId, int year) throws RemoteException {
         try {
             Employee employee = db.getAllEmployees().stream()
@@ -71,55 +87,112 @@ public class HRMServiceImpl extends UnicastRemoteObject implements HRMService {
             List<LeaveApplication> leaves = db.getLeaveReportByYear(empId, year);
 
             StringBuilder html = new StringBuilder();
-            html.append("<html><head><title>Yearly Report ").append(year).append("</title></head><body>");
-            html.append("<h1>Yearly Employee Report</h1>");
-            html.append("<p>Year: ").append(year).append("</p>");
 
-            html.append("<h2>Employee Profile</h2>");
-            html.append("<p>Employee ID: ").append(employee.getEmpId()).append("</p>");
-            html.append("<p>First Name: ").append(escapeHtml(employee.getFirstName())).append("</p>");
-            html.append("<p>Last Name: ").append(escapeHtml(employee.getLastName())).append("</p>");
-            html.append("<p>IC/Passport: ").append(escapeHtml(employee.getIcPassport())).append("</p>");
-            html.append("<p>Username: ").append(escapeHtml(employee.getUsername())).append("</p>");
-            html.append("<p>Role: ").append(escapeHtml(employee.getRole())).append("</p>");
+            html.append("<html>");
+            html.append("<head><title>Yearly Employee Report</title></head>");
+            html.append("<body>");
 
-            html.append("<h2>Family Details</h2>");
-            html.append("<table border='1' cellpadding='5'>");
-            html.append("<tr><th>Member Name</th><th>Relationship</th><th>Date of Birth</th></tr>");
+            // Outer wrapper adds left/right spacing (Swing HTML has limited CSS support)
+            html.append("<table border='0' width='100%' cellpadding='20' cellspacing='0'>");
+            html.append("<tr><td>");
+
+            html.append("<h1 align='center'>Yearly Employee Report</h1>");
+            html.append("<h2 align='center'>Year: ").append(year).append("</h2>");
+            html.append("<br>");
+
+            /* =========================
+             * Employee Profile
+             * ========================= */
+            html.append("<h2 align='center'>Employee Profile</h2>");
+            html.append("<table border='1' cellpadding='8' cellspacing='0' width='100%'>");
+            html.append("<tr><th align='center'>Field</th><th align='center'>Value</th></tr>");
+            html.append("<tr><td align='center'><b>Employee ID</b></td><td align='center'>")
+                    .append(employee.getEmpId()).append("</td></tr>");
+            html.append("<tr><td align='center'><b>First Name</b></td><td align='center'>")
+                    .append(escapeHtml(employee.getFirstName())).append("</td></tr>");
+            html.append("<tr><td align='center'><b>Last Name</b></td><td align='center'>")
+                    .append(escapeHtml(employee.getLastName())).append("</td></tr>");
+            html.append("<tr><td align='center'><b>IC / Passport</b></td><td align='center'>")
+                    .append(escapeHtml(employee.getIcPassport())).append("</td></tr>");
+            html.append("<tr><td align='center'><b>Username</b></td><td align='center'>")
+                    .append(escapeHtml(employee.getUsername())).append("</td></tr>");
+            html.append("<tr><td align='center'><b>Role</b></td><td align='center'>")
+                    .append(escapeHtml(employee.getRole())).append("</td></tr>");
+            html.append("<tr><td align='center'><b>Phone</b></td><td align='center'>")
+                    .append(escapeHtml(employee.getPhoneNumber())).append("</td></tr>");
+            html.append("<tr><td align='center'><b>Email</b></td><td align='center'>")
+                    .append(escapeHtml(employee.getEmail())).append("</td></tr>");
+            html.append("<tr><td align='center'><b>Address</b></td><td align='center'>")
+                    .append(escapeHtml(employee.getAddress())).append("</td></tr>");
+            html.append("</table>");
+
+            html.append("<br><br>");
+
+            /* =========================
+             * Family Details
+             * ========================= */
+            html.append("<h2 align='center'>Family Details</h2>");
+            html.append("<table border='1' cellpadding='8' cellspacing='0' width='100%'>");
+            html.append("<tr>");
+            html.append("<th align='center'>Member Name</th>");
+            html.append("<th align='center'>Relationship</th>");
+            html.append("<th align='center'>Date of Birth</th>");
+            html.append("</tr>");
+
             if (familyDetails.isEmpty()) {
-                html.append("<tr><td colspan='3'>No family members recorded.</td></tr>");
+                html.append("<tr><td colspan='3' align='center'>No family members recorded.</td></tr>");
             } else {
                 for (FamilyDetail detail : familyDetails) {
-                    html.append("<tr>")
-                            .append("<td>").append(escapeHtml(detail.getMemberName())).append("</td>")
-                            .append("<td>").append(escapeHtml(detail.getRelationship())).append("</td>")
-                            .append("<td>").append(detail.getDob()).append("</td>")
-                            .append("</tr>");
+                    html.append("<tr>");
+                    html.append("<td align='center'>").append(escapeHtml(detail.getMemberName())).append("</td>");
+                    html.append("<td align='center'>").append(escapeHtml(detail.getRelationship())).append("</td>");
+                    html.append("<td align='center'>")
+                            .append(detail.getDob() != null ? detail.getDob() : "-")
+                            .append("</td>");
+                    html.append("</tr>");
                 }
             }
             html.append("</table>");
 
-            html.append("<h2>Leave History (").append(year).append(")</h2>");
-            html.append("<table border='1' cellpadding='5'>");
-            html.append("<tr><th>Leave ID</th><th>Type</th><th>Start</th><th>End</th>")
-                    .append("<th>Status</th><th>Reason</th><th>Applied On</th></tr>");
+            html.append("<br><br>");
+
+            /* =========================
+             * Leave History
+             * ========================= */
+            html.append("<h2 align='center'>Leave History (").append(year).append(")</h2>");
+            html.append("<table border='1' cellpadding='8' cellspacing='0' width='100%'>");
+            html.append("<tr>");
+            html.append("<th align='center'>Leave ID</th>");
+            html.append("<th align='center'>Type</th>");
+            html.append("<th align='center'>Start Date</th>");
+            html.append("<th align='center'>End Date</th>");
+            html.append("<th align='center'>Status</th>");
+            html.append("<th align='center'>Reason</th>");
+            html.append("<th align='center'>Applied On</th>");
+            html.append("</tr>");
+
             if (leaves.isEmpty()) {
-                html.append("<tr><td colspan='7'>No leave applications for this year.</td></tr>");
+                html.append("<tr><td colspan='7' align='center'>No leave applications for this year.</td></tr>");
             } else {
                 for (LeaveApplication leave : leaves) {
-                    html.append("<tr>")
-                            .append("<td>").append(leave.getLeaveId()).append("</td>")
-                            .append("<td>").append(leave.getLeaveType()).append("</td>")
-                            .append("<td>").append(leave.getStartDate()).append("</td>")
-                            .append("<td>").append(leave.getEndDate()).append("</td>")
-                            .append("<td>").append(leave.getStatus()).append("</td>")
-                            .append("<td>").append(escapeHtml(leave.getReason())).append("</td>")
-                            .append("<td>").append(leave.getAppliedOn()).append("</td>")
-                            .append("</tr>");
+                    html.append("<tr>");
+                    html.append("<td align='center'>").append(leave.getLeaveId()).append("</td>");
+                    html.append("<td align='center'>").append(escapeHtml(leave.getLeaveType())).append("</td>");
+                    html.append("<td align='center'>").append(leave.getStartDate()).append("</td>");
+                    html.append("<td align='center'>").append(leave.getEndDate()).append("</td>");
+                    html.append("<td align='center'>").append(escapeHtml(leave.getStatus())).append("</td>");
+                    html.append("<td align='center'>").append(escapeHtml(leave.getReason())).append("</td>");
+                    html.append("<td align='center'>")
+                            .append(leave.getAppliedOn() != null ? leave.getAppliedOn() : "-")
+                            .append("</td>");
+                    html.append("</tr>");
                 }
             }
+            html.append("</table>");
 
-            html.append("</table></body></html>");
+            html.append("</td></tr></table>");
+            html.append("</body>");
+            html.append("</html>");
             return html.toString().getBytes();
         } catch (RemoteException e) {
             throw e;
@@ -164,6 +237,32 @@ public class HRMServiceImpl extends UnicastRemoteObject implements HRMService {
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Unexpected error updating profile", e);
             throw new RemoteException("Failed to update profile: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public boolean changePassword(int empId, String currentPassword, String newPassword)
+            throws RemoteException {
+        try {
+            if (newPassword == null || newPassword.isBlank()) {
+                throw new RemoteException("New password cannot be empty.");
+            }
+
+            String currentHash = db.getPasswordHashByEmpId(empId);
+            if (currentHash == null || !BCrypt.checkpw(currentPassword, currentHash)) {
+                throw new RemoteException("Current password is incorrect.");
+            }
+
+            String newHash = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+            return db.updatePasswordHash(empId, newHash);
+        } catch (RemoteException e) {
+            throw e;
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Failed to change password for empId: " + empId, e);
+            throw new RemoteException("Failed to change password: " + e.getMessage(), e);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Unexpected error changing password", e);
+            throw new RemoteException("Failed to change password: " + e.getMessage(), e);
         }
     }
 

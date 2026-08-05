@@ -1,11 +1,15 @@
 package server;
 
+import javax.rmi.ssl.SslRMIClientSocketFactory;
+import javax.rmi.ssl.SslRMIServerSocketFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
+import java.rmi.server.RMIClientSocketFactory;
+import java.rmi.server.RMIServerSocketFactory;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -20,13 +24,17 @@ public class HRMServer {
             String host = props.getProperty("rmi.host", "localhost");
             int port = Integer.parseInt(props.getProperty("rmi.port", "1099"));
 
+            configureSsl(props);
             System.setProperty("java.rmi.server.hostname", host);
 
-            Registry registry = LocateRegistry.createRegistry(port);
-            HRMServiceImpl service = new HRMServiceImpl();
-            registry.bind("HRMService", service);
+            RMIClientSocketFactory csf = new SslRMIClientSocketFactory();
+            RMIServerSocketFactory ssf = new SslRMIServerSocketFactory();
 
-            String message = "HRM Server started. Service bound as 'HRMService' at rmi://"
+            Registry registry = LocateRegistry.createRegistry(port, csf, ssf);
+            HRMServiceImpl service = new HRMServiceImpl(csf, ssf);
+            registry.rebind("HRMService", service);
+
+            String message = "HRM Server started with SSL/TLS. Service bound as 'HRMService' at rmi://"
                     + host + ":" + port + "/HRMService";
             System.out.println(message);
             LOGGER.info(message);
@@ -35,6 +43,32 @@ public class HRMServer {
             System.err.println("Failed to start HRM server: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    private static void configureSsl(Properties props) {
+        String keyStore = props.getProperty("ssl.keystore", "ssl/server-keystore.jks");
+        String keyStorePassword = props.getProperty("ssl.keystore.password", "changeit");
+
+        Path keyStorePath = Path.of(keyStore);
+        if (!Files.exists(keyStorePath)) {
+            throw new IllegalStateException(
+                    "SSL keystore not found: " + keyStorePath.toAbsolutePath()
+                            + ". Run: bash ssl/generate-certs.sh");
+        }
+
+        System.setProperty("javax.net.ssl.keyStore", keyStorePath.toAbsolutePath().toString());
+        System.setProperty("javax.net.ssl.keyStorePassword", keyStorePassword);
+
+        // Trust own cert so registry/stub SSL handshakes can complete on the server side.
+        String trustStore = props.getProperty("ssl.truststore", "ssl/client-truststore.jks");
+        String trustStorePassword = props.getProperty("ssl.truststore.password", keyStorePassword);
+        Path trustStorePath = Path.of(trustStore);
+        if (Files.exists(trustStorePath)) {
+            System.setProperty("javax.net.ssl.trustStore", trustStorePath.toAbsolutePath().toString());
+            System.setProperty("javax.net.ssl.trustStorePassword", trustStorePassword);
+        }
+
+        LOGGER.info("SSL keystore configured: " + keyStorePath.toAbsolutePath());
     }
 
     private static Properties loadConfig() throws IOException {

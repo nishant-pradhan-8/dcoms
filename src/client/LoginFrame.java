@@ -11,6 +11,9 @@ import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import javax.swing.border.EmptyBorder;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -27,42 +30,58 @@ public class LoginFrame extends JFrame {
         super("HRM System - Login");
         this.service = service;
 
+        // Apply native system Look and Feel to avoid the blocky default appearance
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            // Fallback gracefully if system theme fails to load
+        }
+
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(400, 300);
+        setSize(360, 260); // Sized more compactly to match layout scale
         setLocationRelativeTo(null);
 
         usernameField = new JTextField(20);
         passwordField = new JPasswordField(20);
         loginButton = new JButton("Login");
 
+        // Main structural wrapper
         JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(new EmptyBorder(24, 24, 24, 24)); // Soft outer frame margin
+        
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(8, 8, 8, 8);
         gbc.fill = GridBagConstraints.HORIZONTAL;
-
         gbc.gridx = 0;
+        gbc.weightx = 1.0; // Expand fully across horizontally
+
+        // --- Username Label ---
         gbc.gridy = 0;
-        gbc.weightx = 0;
+        gbc.insets = new Insets(0, 0, 4, 0); // 4px space beneath label
         panel.add(new JLabel("Username:"), gbc);
 
-        gbc.gridx = 1;
-        gbc.weightx = 1;
+        // --- Username Field ---
+        gbc.gridy = 1;
+        gbc.ipady = 8; // Adds subtle internal height to modernise field proportions
+        gbc.insets = new Insets(0, 0, 14, 0); // 14px space before the next section
         panel.add(usernameField, gbc);
 
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        gbc.weightx = 0;
+        // --- Password Label ---
+        gbc.gridy = 2;
+        gbc.ipady = 0; // Reset internal padding for structural label text
+        gbc.insets = new Insets(0, 0, 4, 0);
         panel.add(new JLabel("Password:"), gbc);
 
-        gbc.gridx = 1;
-        gbc.weightx = 1;
+        // --- Password Field ---
+        gbc.gridy = 3;
+        gbc.ipady = 8; // Match internal height of the username field
+        gbc.insets = new Insets(0, 0, 20, 0); // Generous 20px buffer before final action button
         panel.add(passwordField, gbc);
 
+        // --- Login Button ---
         loginButton.addActionListener(e -> performLogin());
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        gbc.gridwidth = 2;
-        gbc.weightx = 1;
+        gbc.gridy = 4;
+        gbc.ipady = 6; // Balance button height against input heights
+        gbc.insets = new Insets(0, 0, 0, 0);
         panel.add(loginButton, gbc);
 
         add(panel);

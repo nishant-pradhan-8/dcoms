@@ -13,12 +13,17 @@ public interface HRMService extends Remote {
 
     List<Employee> getAllEmployees() throws RemoteException;
 
+    boolean updateEmployeeIdentity(int empId, String firstName, String lastName,
+                                   String icPassport) throws RemoteException;
+
     byte[] generateYearlyReport(int empId, int year) throws RemoteException;
 
     // --- Employee Functions ---
     Employee login(String username, String password) throws RemoteException;
 
     boolean updateProfile(int empId, Employee updatedData) throws RemoteException;
+
+    boolean changePassword(int empId, String currentPassword, String newPassword) throws RemoteException;
 
     boolean addFamilyDetail(int empId, FamilyDetail detail) throws RemoteException;
 
