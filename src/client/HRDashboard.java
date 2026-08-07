@@ -378,7 +378,7 @@ public class HRDashboard extends JFrame {
             @Override
             protected Boolean doInBackground() {
                 try {
-                    return service.updateLeaveStatus(leaveId, status);
+                    return service.updateLeaveStatus(leaveId, status, loggedInEmployee.getEmpId());
                 } catch (RemoteException e) {
                     error = e;
                     return false;

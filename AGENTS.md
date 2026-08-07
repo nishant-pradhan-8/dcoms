@@ -100,7 +100,6 @@ CREATE TABLE leave_applications (
     -- HR approval information
     approved_by    INT NULL,
     approved_at    TIMESTAMP NULL,
-    hr_comment     TEXT NULL,
 
     FOREIGN KEY (emp_id)
         REFERENCES employees(emp_id)
@@ -145,7 +144,7 @@ public interface HRMService extends Remote {
     List<LeaveApplication> getPendingLeaves() throws RemoteException;
 
     // --- HR Leave Approval ---
-    boolean updateLeaveStatus(int leaveId, String status) throws RemoteException;
+    boolean updateLeaveStatus(int leaveId, String status, int approvedBy) throws RemoteException;
 
   
 }

@@ -17,14 +17,13 @@ public class LeaveApplication implements Serializable {
     private Date appliedOn;
     private int approvedBy;
     private Date approvedAt;
-    private String hrComment;
 
     public LeaveApplication() {
     }
 
     public LeaveApplication(int leaveId, int empId, String leaveType, String status,
                             String reason, Date startDate, Date endDate, Date appliedOn,
-                            int approvedBy, Date approvedAt, String hrComment) {
+                            int approvedBy, Date approvedAt) {
         this.leaveId = leaveId;
         this.empId = empId;
         this.leaveType = leaveType;
@@ -35,7 +34,6 @@ public class LeaveApplication implements Serializable {
         this.appliedOn = appliedOn;
         this.approvedBy = approvedBy;
         this.approvedAt = approvedAt;
-        this.hrComment = hrComment;
     }
 
     public int getLeaveId() {
@@ -116,13 +114,5 @@ public class LeaveApplication implements Serializable {
 
     public void setApprovedAt(Date approvedAt) {
         this.approvedAt = approvedAt;
-    }
-
-    public String getHrComment() {
-        return hrComment;
-    }
-
-    public void setHrComment(String hrComment) {
-        this.hrComment = hrComment;
     }
 }

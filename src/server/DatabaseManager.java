@@ -312,18 +312,12 @@ public class DatabaseManager {
         }
     }
 
-    public boolean updateLeaveStatus(int leaveId, String status) throws SQLException {
-        return updateLeaveStatus(leaveId, status, 0, null);
-    }
-
-    public boolean updateLeaveStatus(int leaveId, String status, int approvedBy, String hrComment)
-            throws SQLException {
+    public boolean updateLeaveStatus(int leaveId, String status, int approvedBy) throws SQLException {
         String sql = """
                 UPDATE leave_applications
                 SET status = ?,
                     approved_by = ?,
-                    approved_at = CURRENT_TIMESTAMP,
-                    hr_comment = ?
+                    approved_at = CURRENT_TIMESTAMP
                 WHERE leave_id = ?
                 """;
 
@@ -335,8 +329,7 @@ public class DatabaseManager {
             } else {
                 ps.setNull(2, java.sql.Types.INTEGER);
             }
-            ps.setString(3, hrComment);
-            ps.setInt(4, leaveId);
+            ps.setInt(3, leaveId);
             return ps.executeUpdate() == 1;
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Failed to update leave status for leaveId: " + leaveId, e);
@@ -347,7 +340,7 @@ public class DatabaseManager {
     public List<LeaveApplication> getLeaveHistoryByEmpId(int empId) throws SQLException {
         String sql = """
                 SELECT leave_id, emp_id, leave_type, start_date, end_date, reason, status,
-                       applied_on, approved_by, approved_at, hr_comment
+                       applied_on, approved_by, approved_at
                 FROM leave_applications
                 WHERE emp_id = ?
                 ORDER BY applied_on DESC, leave_id DESC
@@ -359,7 +352,7 @@ public class DatabaseManager {
     public List<LeaveApplication> getPendingLeaves() throws SQLException {
         String sql = """
                 SELECT leave_id, emp_id, leave_type, start_date, end_date, reason, status,
-                       applied_on, approved_by, approved_at, hr_comment
+                       applied_on, approved_by, approved_at
                 FROM leave_applications
                 WHERE status = 'PENDING'
                 ORDER BY applied_on ASC, leave_id ASC
@@ -412,7 +405,7 @@ public class DatabaseManager {
     public List<LeaveApplication> getLeaveReportByYear(int empId, int year) throws SQLException {
         String sql = """
                 SELECT leave_id, emp_id, leave_type, start_date, end_date, reason, status,
-                       applied_on, approved_by, approved_at, hr_comment
+                       applied_on, approved_by, approved_at
                 FROM leave_applications
                 WHERE emp_id = ?
                   AND (YEAR(start_date) = ? OR YEAR(end_date) = ?)
@@ -487,7 +480,6 @@ public class DatabaseManager {
         }
 
         application.setApprovedAt(toSqlDate(rs.getTimestamp("approved_at")));
-        application.setHrComment(rs.getString("hr_comment"));
         return application;
     }
 

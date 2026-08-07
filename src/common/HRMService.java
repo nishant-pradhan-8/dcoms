@@ -39,5 +39,5 @@ public interface HRMService extends Remote {
     List<LeaveApplication> getPendingLeaves() throws RemoteException;
 
     // --- HR Leave Approval ---
-    boolean updateLeaveStatus(int leaveId, String status) throws RemoteException;
+    boolean updateLeaveStatus(int leaveId, String status, int approvedBy) throws RemoteException;
 }

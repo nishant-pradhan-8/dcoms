@@ -364,8 +364,13 @@ public class HRMServiceImpl extends UnicastRemoteObject implements HRMService {
     }
 
     @Override
-    public synchronized boolean updateLeaveStatus(int leaveId, String status) throws RemoteException {
+    public synchronized boolean updateLeaveStatus(int leaveId, String status, int approvedBy)
+            throws RemoteException {
         try {
+            if (approvedBy <= 0) {
+                throw new RemoteException("Approved-by employee ID is required.");
+            }
+
             if ("APPROVED".equalsIgnoreCase(status)) {
                 LeaveApplication leave = findPendingLeave(leaveId);
                 if (leave == null) {
@@ -383,7 +388,7 @@ public class HRMServiceImpl extends UnicastRemoteObject implements HRMService {
                 }
             }
 
-            return db.updateLeaveStatus(leaveId, status.toUpperCase());
+            return db.updateLeaveStatus(leaveId, status.toUpperCase(), approvedBy);
         } catch (RemoteException e) {
             throw e;
         } catch (SQLException e) {
