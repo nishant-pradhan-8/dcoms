@@ -38,7 +38,7 @@ Requirements the system implements today.
 |----|-------------|----------------|
 | FR11 | Employee can view identity fields (read-only) | First name, last name, IC/passport shown but not editable |
 | FR12 | Employee can update contact details | Phone, email, address via `updateProfile()` |
-| FR13 | Employee can view and add family members | `getFamilyDetails()` / `addFamilyDetail()` |
+| FR13 | Employee can view, add, and remove family members | `getFamilyDetails()` / `addFamilyDetail()` / `removeFamilyDetail()` |
 | FR14 | Employee can view leave balance | Annual and sick leave via `getLeaveBalance()` |
 | FR15 | Employee can apply for leave | Leave type, date pickers, reason via `applyLeave()` |
 | FR16 | Employee can view own leave history | `getLeaveHistory()` in a table |

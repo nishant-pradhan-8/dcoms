@@ -27,6 +27,8 @@ public interface HRMService extends Remote {
 
     boolean addFamilyDetail(int empId, FamilyDetail detail) throws RemoteException;
 
+    boolean removeFamilyDetail(int empId, int detailId) throws RemoteException;
+
     List<FamilyDetail> getFamilyDetails(int empId) throws RemoteException;
 
     // --- Leave Functions ---

@@ -17,6 +17,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -122,6 +123,29 @@ public class DatabaseManager {
         }
     }
 
+    public Employee getEmployeeById(int empId) throws SQLException {
+        String sql = """
+                SELECT emp_id, first_name, last_name, ic_passport, username, role,
+                       phone_number, email, address
+                FROM employees
+                WHERE emp_id = ?
+                """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, empId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapEmployee(rs);
+                }
+                return null;
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Failed to get employee by empId: " + empId, e);
+            throw e;
+        }
+    }
+
     public String getPasswordHashByUsername(String username) throws SQLException {
         String sql = "SELECT password_hash FROM employees WHERE username = ?";
 
@@ -213,6 +237,24 @@ public class DatabaseManager {
         }
     }
 
+    public boolean deleteFamilyDetail(int empId, int detailId) throws SQLException {
+        String sql = """
+                DELETE FROM family_details
+                WHERE detail_id = ? AND emp_id = ?
+                """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, detailId);
+            ps.setInt(2, empId);
+            return ps.executeUpdate() == 1;
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE,
+                    "Failed to delete family detail " + detailId + " for empId: " + empId, e);
+            throw e;
+        }
+    }
+
     public List<FamilyDetail> getFamilyDetailsByEmpId(int empId) throws SQLException {
         String sql = """
                 SELECT detail_id, emp_id, member_name, relationship, dob
@@ -260,30 +302,6 @@ public class DatabaseManager {
         }
     }
 
-    public boolean deductLeaveBalance(int empId, String leaveType, int days) throws SQLException {
-        String column = resolveLeaveBalanceColumn(leaveType);
-        if (column == null) {
-            return true;
-        }
-
-        String sql = """
-                UPDATE leave_balance
-                SET %s = %s - ?
-                WHERE emp_id = ? AND %s >= ?
-                """.formatted(column, column, column);
-
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, days);
-            ps.setInt(2, empId);
-            ps.setInt(3, days);
-            return ps.executeUpdate() == 1;
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Failed to deduct leave balance for empId: " + empId, e);
-            throw e;
-        }
-    }
-
     public int insertLeaveApplication(LeaveApplication application) throws SQLException {
         String sql = """
                 INSERT INTO leave_applications (emp_id, leave_type, start_date, end_date, reason, status)
@@ -312,29 +330,104 @@ public class DatabaseManager {
         }
     }
 
-    public boolean updateLeaveStatus(int leaveId, String status, int approvedBy) throws SQLException {
-        String sql = """
+    /**
+     * Atomically approve or reject a PENDING leave. Deducts ANNUAL/SICK balance on approve
+     * in the same transaction. Returns false if the leave is missing or not PENDING.
+     */
+    public boolean updatePendingLeaveStatus(int leaveId, String status, int approvedBy)
+            throws SQLException {
+        String selectSql = """
+                SELECT leave_id, emp_id, leave_type, start_date, end_date, reason, status,
+                       applied_on, approved_by, approved_at
+                FROM leave_applications
+                WHERE leave_id = ? AND status = 'PENDING'
+                FOR UPDATE
+                """;
+        String updateSql = """
                 UPDATE leave_applications
                 SET status = ?,
                     approved_by = ?,
                     approved_at = CURRENT_TIMESTAMP
-                WHERE leave_id = ?
+                WHERE leave_id = ? AND status = 'PENDING'
                 """;
 
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, status);
-            if (approvedBy > 0) {
-                ps.setInt(2, approvedBy);
-            } else {
-                ps.setNull(2, java.sql.Types.INTEGER);
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                LeaveApplication leave;
+                try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
+                    ps.setInt(1, leaveId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) {
+                            conn.rollback();
+                            return false;
+                        }
+                        leave = mapLeaveApplication(rs);
+                    }
+                }
+
+                if ("APPROVED".equals(status)) {
+                    String leaveType = leave.getLeaveType();
+                    if ("ANNUAL".equalsIgnoreCase(leaveType) || "SICK".equalsIgnoreCase(leaveType)) {
+                        int days = calculateLeaveDays(leave);
+                        if (!deductLeaveBalance(conn, leave.getEmpId(), leaveType, days)) {
+                            conn.rollback();
+                            throw new SQLException("Insufficient " + leaveType.toLowerCase()
+                                    + " leave balance for leave ID: " + leaveId);
+                        }
+                    }
+                }
+
+                try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
+                    ps.setString(1, status);
+                    ps.setInt(2, approvedBy);
+                    ps.setInt(3, leaveId);
+                    if (ps.executeUpdate() != 1) {
+                        conn.rollback();
+                        return false;
+                    }
+                }
+
+                conn.commit();
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
             }
-            ps.setInt(3, leaveId);
-            return ps.executeUpdate() == 1;
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Failed to update leave status for leaveId: " + leaveId, e);
             throw e;
         }
+    }
+
+    private boolean deductLeaveBalance(Connection conn, int empId, String leaveType, int days)
+            throws SQLException {
+        String column = resolveLeaveBalanceColumn(leaveType);
+        if (column == null) {
+            return true;
+        }
+
+        String sql = """
+                UPDATE leave_balance
+                SET %s = %s - ?
+                WHERE emp_id = ? AND %s >= ?
+                """.formatted(column, column, column);
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, days);
+            ps.setInt(2, empId);
+            ps.setInt(3, days);
+            return ps.executeUpdate() == 1;
+        }
+    }
+
+    private int calculateLeaveDays(LeaveApplication application) {
+        return (int) ChronoUnit.DAYS.between(
+                application.getStartDate().toLocalDate(),
+                application.getEndDate().toLocalDate()
+        ) + 1;
     }
 
     public List<LeaveApplication> getLeaveHistoryByEmpId(int empId) throws SQLException {

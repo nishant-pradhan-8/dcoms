@@ -75,7 +75,7 @@ public class ReportPanel extends JPanel {
         reportPane = new JEditorPane();
         reportPane.setEditable(false);
         reportPane.setContentType("text/html");
-        reportPane.setText("<html><body><p'>Generate a report to view it here.</p></body></html>");
+        reportPane.setText("<html><body><p>Generate a report to view it here.</p></body></html>");
 
         add(formPanel, BorderLayout.NORTH);
         add(new JScrollPane(reportPane), BorderLayout.CENTER);

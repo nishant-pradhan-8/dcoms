@@ -74,11 +74,7 @@ public class HRMServiceImpl extends UnicastRemoteObject implements HRMService {
     @Override
     public byte[] generateYearlyReport(int empId, int year) throws RemoteException {
         try {
-            Employee employee = db.getAllEmployees().stream()
-                    .filter(emp -> emp.getEmpId() == empId)
-                    .findFirst()
-                    .orElse(null);
-
+            Employee employee = db.getEmployeeById(empId);
             if (employee == null) {
                 throw new RemoteException("Employee not found for ID: " + empId);
             }
@@ -280,6 +276,20 @@ public class HRMServiceImpl extends UnicastRemoteObject implements HRMService {
     }
 
     @Override
+    public boolean removeFamilyDetail(int empId, int detailId) throws RemoteException {
+        try {
+            return db.deleteFamilyDetail(empId, detailId);
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE,
+                    "Failed to remove family detail " + detailId + " for empId: " + empId, e);
+            throw new RemoteException("Failed to remove family detail: " + e.getMessage(), e);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Unexpected error removing family detail", e);
+            throw new RemoteException("Failed to remove family detail: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public List<FamilyDetail> getFamilyDetails(int empId) throws RemoteException {
         try {
             return db.getFamilyDetailsByEmpId(empId);
@@ -371,24 +381,16 @@ public class HRMServiceImpl extends UnicastRemoteObject implements HRMService {
                 throw new RemoteException("Approved-by employee ID is required.");
             }
 
-            if ("APPROVED".equalsIgnoreCase(status)) {
-                LeaveApplication leave = findPendingLeave(leaveId);
-                if (leave == null) {
-                    throw new RemoteException("Pending leave application not found for ID: " + leaveId);
-                }
-
-                int days = calculateLeaveDays(leave);
-                String leaveType = leave.getLeaveType();
-
-                if ("ANNUAL".equalsIgnoreCase(leaveType) || "SICK".equalsIgnoreCase(leaveType)) {
-                    if (!db.deductLeaveBalance(leave.getEmpId(), leaveType, days)) {
-                        throw new RemoteException("Failed to deduct leave balance. Insufficient balance for "
-                                + leaveType.toLowerCase() + " leave.");
-                    }
-                }
+            String normalizedStatus = status == null ? "" : status.toUpperCase();
+            if (!"APPROVED".equals(normalizedStatus) && !"REJECTED".equals(normalizedStatus)) {
+                throw new RemoteException("Leave status must be APPROVED or REJECTED.");
             }
 
-            return db.updateLeaveStatus(leaveId, status.toUpperCase(), approvedBy);
+            boolean updated = db.updatePendingLeaveStatus(leaveId, normalizedStatus, approvedBy);
+            if (!updated) {
+                throw new RemoteException("Pending leave application not found for ID: " + leaveId);
+            }
+            return true;
         } catch (RemoteException e) {
             throw e;
         } catch (SQLException e) {
@@ -398,15 +400,6 @@ public class HRMServiceImpl extends UnicastRemoteObject implements HRMService {
             LOGGER.log(Level.SEVERE, "Unexpected error updating leave status", e);
             throw new RemoteException("Failed to update leave status: " + e.getMessage(), e);
         }
-    }
-
-    private LeaveApplication findPendingLeave(int leaveId) throws SQLException {
-        for (LeaveApplication leave : db.getPendingLeaves()) {
-            if (leave.getLeaveId() == leaveId) {
-                return leave;
-            }
-        }
-        return null;
     }
 
     private void validateLeaveDates(LeaveApplication application) throws RemoteException {

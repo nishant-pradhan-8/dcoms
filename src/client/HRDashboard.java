@@ -106,16 +106,73 @@ public class HRDashboard extends JFrame {
         panel.add(new JScrollPane(employeesTable), BorderLayout.CENTER);
 
         JButton refreshButton = new JButton("Refresh");
+        JButton leaveBalanceButton = new JButton("Leave Balance");
         JButton editButton = new JButton("Edit Identity");
         refreshButton.addActionListener(e -> loadEmployees());
+        leaveBalanceButton.addActionListener(e -> showLeaveBalanceDialog());
         editButton.addActionListener(e -> showEditIdentityDialog());
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.add(refreshButton);
+        buttonPanel.add(leaveBalanceButton);
         buttonPanel.add(editButton);
         panel.add(buttonPanel, BorderLayout.SOUTH);
 
         return panel;
+    }
+
+    private void showLeaveBalanceDialog() {
+        int selectedRow = employeesTable.getSelectedRow();
+        if (selectedRow < 0) {
+            JOptionPane.showMessageDialog(this,
+                    "Please select an employee to view leave balance.",
+                    "Selection Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int empId = (int) employeesTableModel.getValueAt(selectedRow, 0);
+        String firstName = String.valueOf(employeesTableModel.getValueAt(selectedRow, 1));
+        String lastName = String.valueOf(employeesTableModel.getValueAt(selectedRow, 2));
+
+        SwingWorker<int[], Void> worker = new SwingWorker<>() {
+            private Exception error;
+
+            @Override
+            protected int[] doInBackground() {
+                try {
+                    int annual = service.getLeaveBalance(empId, "ANNUAL");
+                    int sick = service.getLeaveBalance(empId, "SICK");
+                    return new int[]{annual, sick};
+                } catch (RemoteException e) {
+                    error = e;
+                    return null;
+                }
+            }
+
+            @Override
+            protected void done() {
+                if (error != null) {
+                    JOptionPane.showMessageDialog(HRDashboard.this,
+                            error.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                try {
+                    int[] balances = get();
+                    if (balances == null) {
+                        return;
+                    }
+                    JOptionPane.showMessageDialog(HRDashboard.this,
+                            "Employee: " + firstName + " " + lastName + " (ID: " + empId + ")\n\n"
+                                    + "Annual Leave Remaining: " + balances[0] + "\n"
+                                    + "Sick Leave Remaining: " + balances[1],
+                            "Leave Balance", JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception e) {
+                    JOptionPane.showMessageDialog(HRDashboard.this,
+                            e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        };
+        worker.execute();
     }
 
     private void showEditIdentityDialog() {

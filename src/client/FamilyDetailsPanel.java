@@ -49,13 +49,74 @@ public class FamilyDetailsPanel extends JPanel {
         add(new JScrollPane(table), BorderLayout.CENTER);
 
         JButton addButton = new JButton("Add");
+        JButton removeButton = new JButton("Remove");
         addButton.addActionListener(e -> showAddDialog());
+        removeButton.addActionListener(e -> removeSelectedFamilyMember(table));
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.add(addButton);
+        buttonPanel.add(removeButton);
         add(buttonPanel, BorderLayout.SOUTH);
 
         loadFamilyDetails();
+    }
+
+    private void removeSelectedFamilyMember(JTable table) {
+        int selectedRow = table.getSelectedRow();
+        if (selectedRow < 0) {
+            JOptionPane.showMessageDialog(this,
+                    "Please select a family member to remove.",
+                    "Selection Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int detailId = (int) tableModel.getValueAt(selectedRow, 0);
+        String memberName = String.valueOf(tableModel.getValueAt(selectedRow, 1));
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Remove family member \"" + memberName + "\"?",
+                "Confirm Remove",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE);
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
+            private Exception error;
+
+            @Override
+            protected Boolean doInBackground() {
+                try {
+                    return service.removeFamilyDetail(employee.getEmpId(), detailId);
+                } catch (RemoteException e) {
+                    error = e;
+                    return false;
+                }
+            }
+
+            @Override
+            protected void done() {
+                if (error != null) {
+                    JOptionPane.showMessageDialog(FamilyDetailsPanel.this,
+                            error.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                try {
+                    if (Boolean.TRUE.equals(get())) {
+                        loadFamilyDetails();
+                    } else {
+                        JOptionPane.showMessageDialog(FamilyDetailsPanel.this,
+                                "Failed to remove family member.",
+                                "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (Exception e) {
+                    JOptionPane.showMessageDialog(FamilyDetailsPanel.this,
+                            e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        };
+        worker.execute();
     }
 
     private void showAddDialog() {
